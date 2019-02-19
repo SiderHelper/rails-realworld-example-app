@@ -138,3 +138,12 @@ rules:
         after: "[].size"
       - after: "[].count(:x)"
       - after: "[].count {|x| x > 3 }"
+  - id: sample.non_null_migration
+    pattern: "_.string(:symbol:, !null: _)"
+    message: |
+      Do you really want a nullable column?
+    justification:
+      - When you want a nullable column
+    examples:
+      - before: "t.string(:name)"
+        after: "t.string(:name, null: true)"
