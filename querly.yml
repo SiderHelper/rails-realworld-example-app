@@ -1,0 +1,140 @@
+rules:
+  - id: sample.delete_all
+    pattern:
+      - delete_all
+      - update_all
+    message: |
+      Validations and callbacks will be skipped
+      It's faster than calling destroy or update each record, but may be dangerous.
+    justification:
+      - You have too much record to update/destroy one by one
+      - When you are sure skipping callbacks/validations is okay
+    before:
+      - records.delete_all
+      - "records.update_all(people_id: nil)"
+    after:
+      - records.each(&:destroy)
+      - |
+        records.each do |record|
+          record.update(people_id: nil)
+        end
+  - id: sample.save_not_conditional
+    pattern:
+      - "save(!validate: false, ...) [!conditional]"
+      - "update(...) [!conditional]"
+      - "update_attributes(...) [!conditional]"
+    message: |
+      save or update returns false when it fails.
+      Check the return value and try error recovery.
+    justification:
+      - When there is no way to recover from error.
+    before:
+      - record.save()
+      - "record.update(foo: bar)"
+      - "record.update(attrs)"
+    after:
+      - if record.save() then do_something end
+      - "record.save(validate: false)"
+      - "record.update(foo: 1) or fail"
+  - id: sample.skip_validation
+    pattern:
+      - "save(validate: false)"
+      - "save!(validate: false)"
+    message: These calls will skip validation
+    justification:
+      - When you want to skip validation
+      - When you have done validation code in other than ActiveRecord's validation mechanism
+  - id: sample.net_http
+    pattern: Net::HTTP
+    message: Use HTTPClient to make Web api calls
+    before:
+      - Net::HTTP.get(url)
+    after:
+      - HTTPClient.new.get_content(url)
+  - id: sample.root_url_without_locale
+    pattern: "root_url(!locale: _)"
+    message: Put locale parameter in the link to top page
+    before: root_url()
+    after: "root_url(locale: I18n.locale)"
+  - id: sample.transaction
+    pattern: transaction
+    message: Use with_account_lock helper, generally
+    justification:
+      - It does not need lock over account
+      - It does not access accounts table
+    before:
+      - transaction do something end
+    after:
+      - with_account_lock(account) do something end
+  - id: sample.oj
+    pattern:
+      - JSON.load
+      - JSON.dump
+    message: Use Oj for JSON load and dump
+  - id: sample.metaprogramming_abuse
+    pattern:
+      - classify
+      - constantize
+      - eval
+      - instance_values
+      - safe_constantize
+    message: Consider three times before using meta-programming
+  - id: sample.activesupport.try
+    pattern: "try(:symbol:, ...)"
+    message: try returns nil if the method is not defined, try! instead?
+  - id: sample.try_with_block_pass
+    pattern: "try(&:symbol:)"
+    message: It's same as just passing symbol, and slower
+  - id: sample.transaction_renew
+    pattern: "transaction(requires_new: true)"
+    message: Our RDBMS does not support nested transaction
+  - id: sample.capybara.assertion
+    pattern:
+      - assert_equal
+      - assert
+    message: |
+      Using minitest assertions with Capybara may make test unstable
+      Use Capybara assertions like assert_selector
+    justification:
+      - There is no access to Capybara in that test
+      - You have using retrying in test
+    tags:
+      - test
+      - capybara
+  - id: sample.capybara.negations
+    pattern:
+      - refute
+      - assert_nil
+    message: |
+      Negating capybara assertions would make test unstable
+      Maybe you can use Capybara helpers like has_no_css?
+    justification:
+      - There is no access to Capybara in the test
+      - You have implemented retrying in test
+    tags:
+      - test
+      - capybara
+  - id: sample.order-group
+    pattern: order...group
+    before:
+      - records.where.order.group
+      - records.order.where.group
+    message: |
+      Using both group and order may generate broken SQL
+  - id: sample.pp_meta
+    message: |
+      Method names can be a meta variable reference
+      Meta variable starts with single quote ', and followed with lower letter.
+    pattern:
+      - subject: "'p(...)"
+        where:
+          p: /p+/
+  - id: sample.count
+    pattern: count() !{}
+    message: |
+      Use size or length for count, if receiver is an array
+    examples:
+      - before: "[].count"
+        after: "[].size"
+      - after: "[].count(:x)"
+      - after: "[].count {|x| x > 3 }"
